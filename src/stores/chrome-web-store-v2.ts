@@ -70,9 +70,10 @@ export class ChromeWebStoreV2 implements Store {
       params: { name: this.nameParam },
       body: {
         blockOnWarnings: undefined,
-        deployInfos: this.options.deployPercentage
-          ? [{ deployPercentage: this.options.deployPercentage }]
-          : undefined,
+        deployInfos:
+          this.options.deployPercentage != null
+            ? [{ deployPercentage: this.options.deployPercentage }]
+            : undefined,
         publishType: this.options.publishType,
         skipReview: this.options.skipReview,
       },
