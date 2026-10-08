@@ -1,4 +1,6 @@
-export function pollUntil<T>(
+import { sleep } from './sleep';
+
+export async function pollUntil<T>(
   condition: () => Promise<T | undefined>,
   options?: {
     interval?: number;
@@ -11,19 +13,12 @@ export function pollUntil<T>(
   } = options ?? {};
   const start = Date.now();
 
-  return new Promise((resolve, reject) => {
-    const intervalId = setInterval(async () => {
-      const duration = Date.now() - start;
-      if (duration > timeout) {
-        clearInterval(intervalId);
-        reject(new Error('Timeout'));
-        return;
-      }
-      const res = await condition();
-      if (res != null) {
-        clearInterval(intervalId);
-        resolve(res);
-      }
-    }, interval);
-  });
+  while (true) {
+    await sleep(interval);
+    if (Date.now() - start > timeout) throw new Error('Timeout');
+
+    // A slow check never overlaps the next one, and its errors reject the poll
+    const res = await condition();
+    if (res != null) return res;
+  }
 }
