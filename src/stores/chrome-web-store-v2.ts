@@ -7,6 +7,7 @@ import { createReadStream } from 'node:fs';
 import { ChromeWebStoreUploadStateError } from './chrome-web-store-v1.1';
 import type { ChromeWebStoreV2Options } from '../utils/config-schema';
 import { logger } from '../utils/logger';
+import { pollUntil } from '../utils/polling';
 
 export interface ServiceAccountTokenResponse {
   access_token: string;
@@ -58,6 +59,10 @@ export class ChromeWebStoreV2 implements Store {
       params: { name: this.nameParam },
       body: file,
     });
+    if (uploadRes.uploadState === 'IN_PROGRESS') {
+      this.setStatus?.('Waiting for upload to finish processing');
+      uploadRes.uploadState = await this.waitForAsyncUpload();
+    }
     this.checkUploadState(uploadRes);
 
     if (this.options.skipSubmitReview) {
@@ -149,11 +154,19 @@ export class ChromeWebStoreV2 implements Store {
     return `publishers/${this.options.publisherId}/items/${this.options.extensionId}`;
   }
 
+  private async waitForAsyncUpload(): Promise<
+    CwsApiV2.FetchItemStatusResponse['lastAsyncUploadState']
+  > {
+    const { lastAsyncUploadState } = await pollUntil(async () => {
+      const status = await this.getStatus();
+      if (status.lastAsyncUploadState !== 'IN_PROGRESS') return status;
+    });
+    return lastAsyncUploadState;
+  }
+
   private checkUploadState(
     item: CwsApiV2.UploadItemPackageResponse,
   ): void | never {
-    // TODO: Unclear is v2 API needs polling or not, so throw if it's not a
-    // success - the rest of the submission pipeline expects immediate success.
     if (item.uploadState !== 'SUCCEEDED')
       throw new ChromeWebStoreUploadStateError(item);
   }
